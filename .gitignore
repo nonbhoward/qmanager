@@ -1,0 +1,12 @@
+# files
+config.yaml
+data.json
+memory.json
+queue.yaml
+regex.yaml
+
+
+# folders
+.idea
+__pycache__
+env
