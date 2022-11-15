@@ -1,0 +1,4 @@
+dotenv:
+hardcode:
+  host: (see class Hardcode)
+  port: (see class Hardcode)

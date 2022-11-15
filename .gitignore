@@ -1,0 +1,9 @@
+# files
+
+# folders
+.idea
+__pycache__
+env
+
+# patterns
+*.json
