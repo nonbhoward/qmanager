@@ -29,6 +29,7 @@ def read_config():
     # add hardcodes to config
     config['hardcode']['host'] = Hardcode.host
     config['hardcode']['port'] = Hardcode.port
+    config['path']['state_cache'] = Hardcode.path_to_state_cache
 
     # add dotenv and return
     config['dotenv'] = read_dotenv(config, project_name)

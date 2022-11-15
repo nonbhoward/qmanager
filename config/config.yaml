@@ -2,3 +2,5 @@ dotenv:
 hardcode:
   host: (see class Hardcode)
   port: (see class Hardcode)
+path:
+  state_cache: (see class Hardcode)
