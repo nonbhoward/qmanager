@@ -16,5 +16,5 @@ class Hardcode:
     path_to_project = Path(home, 'git', project_name)
 
     # build
-    path_to_state_cache = Path(path_to_project, 'cache', 'state.json')
+    path_to_cache = Path(path_to_project, 'cache', 'cache.json')
     path_to_config = Path(path_to_project, 'config', 'config.yaml')
