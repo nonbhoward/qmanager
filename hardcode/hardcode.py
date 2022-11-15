@@ -2,12 +2,15 @@
 import os
 from pathlib import Path
 
-home = os.environ.get('HOME')
-project_name = 'qmanager'
-
 
 class Hardcode:
+    # get a root
+    home = os.environ.get('HOME')
+    if not home:  # nt compatibility
+        home = os.environ['HOMEDRIVE'] + os.environ['HOMEPATH']
+
     # constants
+    project_name = 'qmanager'
     host = 'localhost'
     port = '8080'
 

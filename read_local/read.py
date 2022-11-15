@@ -39,6 +39,8 @@ def read_config():
 def read_dotenv(config, project_name):
     # get path
     home = os.environ.get('HOME')
+    if not home:  # nt compatibility
+        home = os.environ['HOMEDRIVE'] + os.environ['HOMEPATH']
     path_to_dotenv = Path(home, '.env')
 
     # verify path
