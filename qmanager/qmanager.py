@@ -4,20 +4,21 @@ import os
 
 # imports, project
 from data_mgmt.data_mgmt import sort_by_filename
-from qmanager.cache import StateHandler
+from qmanager.cache import CacheController
 
 
 class Qmanager:
-    def __init__(self, config):
+    def __init__(self, config: dict):
         self.qbit_instance = config['qbit_instance']
         self.path_to_cache = config['path']['cache']
 
         # init attributes assigned outside init
         self.cache = None
+        self.cache_controller = None
 
     def run(self):
         # read state cache
-        self.read_state_cache()
+        self.read_cache()
 
         # get qbit state
         self.read_qbit_state()
@@ -26,9 +27,9 @@ class Qmanager:
         self.increment_sequential_triple_checkboxes()
 
         # write state cache
-        self.write_state_cache()
+        self.write_cache()
 
-    def read_state_cache(self):
+    def read_cache(self):
         # init core objects
         path_to_cache = self.path_to_cache
 
@@ -48,24 +49,25 @@ class Qmanager:
             cache_r_contents = cache_r.read()
             json_cache = json.loads(cache_r_contents)
 
-        # if None, init as dict and create state_cache key
+        # if None, init as dict and create entry_cache key
         if not json_cache:
             json_cache = {
-                'state_cache': {}
+                'entry_cache': {}
             }
 
         # save to class
         self.cache = json_cache
+        self.cache_controller = CacheController(self.cache)
 
     def read_qbit_state(self):
         # init core objects
         qbit = self.qbit_instance
-        state_handler = StateHandler(self.cache)
 
         # extract entry information from client
         all_entries = qbit.torrents.info()
         for entry in all_entries:
-            state_handler.set_files(entry.hash, entry.files.data)
+            files = entry.files.data
+            self.cache_controller.set_entry_files(entry.hash, files)
 
     def increment_sequential_triple_checkboxes(self):
         """This function's role is to check priorities, identifying the pattern
@@ -80,15 +82,20 @@ class Qmanager:
           selected and this sequence detector will pass over it until a third
           file is selected at a later date.
         """
-        for e_hash, details in self.cache['state_cache'].items():
+        self.cache_controller.init_action_cache()
+        for e_hash, details in self.cache_controller.get_entry_cache().items():
             file_list = details['files']
-            entry_files_sorted_by_name = sort_by_filename(file_list)
-            pass
+            file_list_w_grouped_keys = sort_by_filename(file_list)
+            action_cache = {e_hash: file_list_w_grouped_keys}
+            self.cache_controller.update_action_cache(action_cache)
 
-    def write_state_cache(self):
+        # next goal
+        pass
+
+    def write_cache(self):
         # init core objects
-        path_to_state_cache = self.path_to_cache
+        path_to_cache = self.path_to_cache
 
         # write to disk
-        with open(path_to_state_cache, 'w') as cache_w:
+        with open(path_to_cache, 'w') as cache_w:
             json.dump(self.cache, cache_w)

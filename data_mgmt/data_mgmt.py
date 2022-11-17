@@ -25,21 +25,23 @@ def sort_by_filename(file_list):
     file_dict_keys_sorted = sorted(file_dict)
 
     # using the sorted keys, rebuild the metadata dictionary in order
-    #   of file.name. in addition, tally priority values as well as
-    #   "sequential priority value streaks" for use in other functions
+    #   of file.name. in addition, look for grouped priority values and
+    #   retrieve associated keys
 
-    # init objects needed for logic
+    # init objects
     file_dict_sorted_by_name = {'file_names': {}}
+    # init objects needed for priority hunting
     key_now = key_before = key_before_before = None
     group_of_three_found = False
+    prioritized_file_keys = None
 
     for idx, file_dict_key_sorted in enumerate(file_dict_keys_sorted):
         val_now = val_before = val_before_before = None
 
         # read values from the unsorted file_dict
-        index = file_dict[file_dict_key_sorted]['index']
-        priority = file_dict[file_dict_key_sorted]['priority']
-        if group_of_three_found and priority == 0:
+        entry_index = file_dict[file_dict_key_sorted]['index']
+        entry_priority = file_dict[file_dict_key_sorted]['priority']
+        if group_of_three_found and entry_priority == 0:
             file_dict_sorted_by_name['prioritized_file_keys'] = prioritized_file_keys
 
         there_are_two_previous_values = idx > 1
@@ -49,12 +51,15 @@ def sort_by_filename(file_list):
             key_before = file_dict_keys_sorted[idx - 1]
             key_before_before = file_dict_keys_sorted[idx - 2]
 
+            # init shortcuts
+            file_names = file_dict_sorted_by_name['file_names']
+            entry_before = file_names[key_before]
+            entry_before_before = file_names[key_before_before]
+
             # get priority values of current and two previous keys
-            val_now = priority
-            val_before = \
-                file_dict_sorted_by_name['file_names'][key_before]['priority']
-            val_before_before = \
-                file_dict_sorted_by_name['file_names'][key_before_before]['priority']
+            val_now = entry_priority
+            val_before = entry_before['entry_priority']
+            val_before_before = entry_before_before['entry_priority']
 
         group_of_three_found = False
         three_in_a_row_match = val_now and val_now == val_before == val_before_before
@@ -64,9 +69,8 @@ def sort_by_filename(file_list):
 
         # write values to the newly name-sorted file_dict
         file_dict_sorted_by_name['file_names'][file_dict_key_sorted] = {
-            'index': index,
-            'priority': priority
+            'entry_index': entry_index,
+            'entry_priority': entry_priority
         }
 
-        # record the priority of the current run
     return file_dict_sorted_by_name

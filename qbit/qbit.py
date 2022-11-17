@@ -2,7 +2,7 @@
 import qbittorrentapi
 
 
-def add_qbit_instance_to_config(config):
+def add_qbit_instance_to_config(config: dict) -> dict:
     qbit_instance = qbittorrentapi.Client(
         host=config['hardcode']['host'],
         port=config['hardcode']['port'],
