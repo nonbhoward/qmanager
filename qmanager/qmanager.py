@@ -3,9 +3,7 @@ import json
 import os
 
 # imports, project
-from data_mgmt.data_mgmt import extract_sequentially_prioritized_metadata
 from data_mgmt.data_mgmt import sort_by_filename
-from qbit.q_enum import FilePriority
 from qmanager.cache import StateHandler
 
 
@@ -70,12 +68,21 @@ class Qmanager:
             state_handler.set_files(entry.hash, entry.files.data)
 
     def increment_sequential_triple_checkboxes(self):
+        """This function's role is to check priorities, identifying the pattern
+          of three file.name sorted files each with a non-zero priority. When
+          three files are selected, they represent the following :
+
+          File #1 : file was watched <~ will be unselected and deleted
+          File #2 : file being watched <~ no action
+          File #3 : file to be watched <~ no action
+
+        After file #1 is deleted, it is unselected, two files are left
+          selected and this sequence detector will pass over it until a third
+          file is selected at a later date.
+        """
         for e_hash, details in self.cache['state_cache'].items():
             file_list = details['files']
             entry_files_sorted_by_name = sort_by_filename(file_list)
-            entry_files_w_sequence_details = \
-                extract_sequentially_prioritized_metadata(
-                    entry_files_sorted_by_name)
             pass
 
     def write_state_cache(self):
