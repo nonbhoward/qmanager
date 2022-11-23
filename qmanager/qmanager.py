@@ -6,7 +6,7 @@ import json
 import os
 
 # imports, project
-from data_mgmt.data_mgmt import find_prioritized_file_keys
+from data_mgmt.data_mgmt import find_pfks
 from qbit.q_enum import EntryState
 from qbit.q_enum import FilePriority
 from qmanager.cache import CacheController
@@ -90,25 +90,16 @@ class Qmanager:
                 qbit.torrents_recheck(torrent_hashes=entry.hash)
 
     def parse_actions_from_entry_cache(self):
-        """This function's role is to check priorities, identifying the pattern
-          of three file.name sorted files each with a non-zero priority. When
-          three files are selected, they represent the following :
-
-          File #1 : file was watched <~ will be unselected and deleted
-          File #2 : file being watched <~ no action
-          File #3 : file to be watched <~ no action
-
-        After file #1 is deleted, it is unselected, two files are left
-          selected and this sequence detector will pass over it until a third
-          file is selected at a later date.
-        """
         self.cache_controller.init_action_cache()
         action_cache = {}
         # read entry hash, looking for sequentially selected filenames
+        # this target represents three prioritized files in a row
+        # TODO abstract this more clearly
+        target = [0, 1, 1, 1, 0]
         for e_hash, details in self.cache_controller.get_entry_cache().items():
             file_list = details['files']
-            file_list_w_grouped_keys = find_prioritized_file_keys(file_list)
-            action_cache[e_hash] = file_list_w_grouped_keys
+            file_list_w_pfks = find_pfks(file_list, target)
+            action_cache[e_hash] = file_list_w_pfks
         self.cache_controller.update_action_cache(action_cache)
 
     def execute_action_cache(self):

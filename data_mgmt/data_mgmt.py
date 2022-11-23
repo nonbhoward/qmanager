@@ -1,10 +1,26 @@
-def find_prioritized_file_keys(file_list):
+def find_pfks(file_list, target):
     """
-    :param file_list:
-    :return:
+    pfk = prioritized file keys
+    This function's role is to check priorities, identifying the pattern
+      of x # of file.name sorted files each with a non-zero priority. When
+      x files are selected, they represent the following :
+
+      File n : file was watched <~ will be unselected and deleted
+      File n+1 : file being watched <~ no action
+      File n+2 : file to be watched <~ no action
+      File n+..
+
+    After file #1 is deleted, it is unselected, two files are left
+      selected and this sequence detector will pass over it until a target
+      file is selected at a later date.
+
+    :param file_list: list of files taken directly from client
+    :param target: prioritized file pattern to seek
+    :return: dictionaried data with keys to identify prioritized files
     """
     # create a metadata dictionary keyed by filename in the same order as
-    #   the entry.files.data list
+    #   the entry.files.data list. used to generate alphabetical filenames
+    #   as well as providing a way to extract metadata by filename
     file_dict = {}
     for file in file_list:
         # extract file metadata
@@ -12,47 +28,37 @@ def find_prioritized_file_keys(file_list):
             'id': file.id,
             'priority': file.priority
         }
-
         # save file metadata by file name
         file_dict[file.name] = file_metadata
 
     # sort the dictionary keys by name
-    file_dict_keys_sorted = sorted(file_dict)
+    file_names_sorted = sorted(file_dict)
 
     # using the sorted keys, rebuild the metadata dictionary in order
-    #   of file.name. in addition, look for grouped priority values and
-    #   retrieve associated keys
+    #   of file.name
 
     # init objects
+    # fns_and_pfk = "filenames and prioritized file keys"
     fns_and_pfk = {'file_names': {}}
-    # init objects needed for priority hunting
-    file_03_keep = file_02_keep = file_01_delete = None
-    group_of_three_found = False
     prioritized_file_keys = {}
-    get_next_value = False
-
-    priorities = []
-    for file_dict_key_sorted in file_dict_keys_sorted:
+    e_priorities = []
+    for file_name in file_names_sorted:
         # write values to the newly name-sorted file_dict
-        entry_id = file_dict[file_dict_key_sorted]['id']
-        entry_priority = file_dict[file_dict_key_sorted]['priority']
-        fns_and_pfk = fns_and_pfk
-        fns_and_pfk['file_names'][file_dict_key_sorted] = {
-            'entry_id': entry_id,
-            'entry_priority': entry_priority
+        fns_and_pfk['file_names'][file_name] = {
+            'entry_id': file_dict[file_name]['id'],
+            'entry_priority': file_dict[file_name]['priority']
         }
-        priorities.append(entry_priority)
+        e_priorities.append(file_dict[file_name]['priority'])
 
-    priorities_count = len(priorities)
+    # look for grouped priority values and retrieve associated keys
     action_indices = []
-    for idx in range(priorities_count):
-        sample = [priority for priority in priorities[idx:idx+5]]
-        target = [0, 1, 1, 1, 0]
+    for idx in range(len(e_priorities)):
+        sample = [priority for priority in e_priorities[idx:idx+5]]
         if target == sample:
             action_indices = [idx + 1, idx + 2, idx + 3]
         action_keys = []
         for action_index in action_indices:
-            action_keys.append(file_dict_keys_sorted[action_index])
+            action_keys.append(file_names_sorted[action_index])
         if action_keys:
             prioritized_file_keys = {
                 'file_01_delete': action_keys[0]
