@@ -1,9 +1,14 @@
 # imports, python
+from pathlib import Path
+from time import sleep
+from time import time
 import json
 import os
 
 # imports, project
-from data_mgmt.data_mgmt import sort_by_filename
+from data_mgmt.data_mgmt import find_prioritized_file_keys
+from qbit.q_enum import EntryState
+from qbit.q_enum import FilePriority
 from qmanager.cache import CacheController
 
 
@@ -23,10 +28,18 @@ class Qmanager:
         # get qbit state
         self.read_qbit_state()
 
-        # increment triple-checkmark entries
-        self.increment_sequential_triple_checkboxes()
+        # correct any errors
+        self.recheck_error_entries()
+
+        # read entry cache > populate action cache
+        self.parse_actions_from_entry_cache()
+
+        # execute action cache
+        self.execute_action_cache()
 
         # write state cache
+        # FIXME bug where cache reads back as dict and breaks everything
+        exit()
         self.write_cache()
 
     def read_cache(self):
@@ -69,7 +82,14 @@ class Qmanager:
             files = entry.files.data
             self.cache_controller.set_entry_files(entry.hash, files)
 
-    def increment_sequential_triple_checkboxes(self):
+    def recheck_error_entries(self):
+        qbit = self.qbit_instance
+        all_entries = qbit.torrents.info()
+        for entry in all_entries:
+            if entry.state_enum.is_errored:
+                qbit.torrents_recheck(torrent_hashes=entry.hash)
+
+    def parse_actions_from_entry_cache(self):
         """This function's role is to check priorities, identifying the pattern
           of three file.name sorted files each with a non-zero priority. When
           three files are selected, they represent the following :
@@ -83,14 +103,112 @@ class Qmanager:
           file is selected at a later date.
         """
         self.cache_controller.init_action_cache()
+        action_cache = {}
+        # read entry hash, looking for sequentially selected filenames
         for e_hash, details in self.cache_controller.get_entry_cache().items():
             file_list = details['files']
-            file_list_w_grouped_keys = sort_by_filename(file_list)
-            action_cache = {e_hash: file_list_w_grouped_keys}
-            self.cache_controller.update_action_cache(action_cache)
+            file_list_w_grouped_keys = find_prioritized_file_keys(file_list)
+            action_cache[e_hash] = file_list_w_grouped_keys
+        self.cache_controller.update_action_cache(action_cache)
 
-        # next goal
-        pass
+    def execute_action_cache(self):
+        action_cache = self.cache['action_cache']
+        for e_hash, details in action_cache.items():
+            if 'prioritized_file_keys' not in details:
+                continue
+            pfk = details['prioritized_file_keys']
+            ftd = 'file_01_delete'
+            file_to_delete = pfk[ftd] if ftd in pfk else None
+            if file_to_delete:
+                e_id = details['file_names'][file_to_delete]['entry_id']
+                self.delete_file(e_hash=e_hash, e_id=e_id)
+                e_id = None
+            self.recheck_and_resume(e_hash)
+            pass
+
+    def delete_file(self, e_hash, e_id, timeout_sec=15):
+        qbit = self.qbit_instance
+        e_info = qbit.torrents_info(torrent_hashes=e_hash)
+        f_name = e_info.data[0].files.data[e_id].name
+        content_path = e_info.data[0].content_path
+
+        # pause entry
+        qbit.torrents_pause(torrent_hashes=e_hash)
+
+        # wait, verify paused
+        paused, timeout, start_time = False, False, time()
+        print(f'pausing {e_hash} to deselect {f_name}')
+        while not paused and not timeout:
+            timeout = time() - start_time > timeout_sec
+            if timeout:
+                print(f'pause timed out')
+                exit()
+            e_state = qbit.torrents_info(
+                torrent_hashes=e_hash).data[0].state
+            paused = True if EntryState.paused in e_state else False
+            sleep(.25)
+        print(f'pause successful')
+
+        # unselect
+        print(f'deselecting {f_name}')
+        qbit.torrents_file_priority(torrent_hash=e_hash,
+                                    file_ids=e_id,
+                                    priority=FilePriority.not_download)
+
+        # wait, verify unselected
+        selected, timeout, start_time = True, False, time()
+        while selected and not timeout:
+            timeout = time() - start_time > timeout_sec
+            if timeout:
+                print(f'deselect timed out')
+                exit()
+            f_priority = qbit.torrents_info(
+                torrent_hashes=e_hash).data[0].files.data[e_id].priority
+            selected = f_priority == 1
+        print(f'deselect successful')
+
+        # find file on disk
+        file_found = False
+        path_to_file = None
+        for root, _, files in os.walk(content_path):
+            for file in files:
+                file_found = file in f_name
+                if file_found:
+                    path_to_file = Path(root, file)
+                    break
+
+        if not file_found:
+            print(f'file not found : {f_name}')
+            return
+
+        # delete file from disk
+        print(f'check if exist : {path_to_file}')
+        if os.path.exists(path_to_file):
+            try:
+                print(f'delete from disk : {path_to_file}')
+                os.remove(path_to_file)
+            except Exception as exc:
+                print(f'failed to delete file : {exc}')
+
+    def recheck_and_resume(self, e_hash, timeout_sec=15):
+        qbit = self.qbit_instance
+
+        # force recheck
+        qbit.torrents_recheck(torrent_hashes=e_hash)
+
+        # wait for recheck to complete
+        checking = True
+        timeout, start_time = False, time()
+        while checking and not timeout:
+            timeout = time() - start_time > timeout_sec
+            if timeout:
+                print(f'checking timed out')
+                exit()
+            # TODO not sure if this works
+            checking = qbit.torrents_info(torrent_hashes=e_hash).data[0].state_enum.is_checking
+
+        # resume
+        qbit.torrents_resume(torrent_hashes=e_hash)
 
     def write_cache(self):
         # init core objects

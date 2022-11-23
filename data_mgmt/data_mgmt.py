@@ -1,7 +1,4 @@
-from qbit.q_enum import FilePriority
-
-
-def sort_by_filename(file_list):
+def find_prioritized_file_keys(file_list):
     """
     TODO note that itertools.groupby could have been useful here
 
@@ -14,7 +11,7 @@ def sort_by_filename(file_list):
     for file in file_list:
         # extract file metadata
         file_metadata = {
-            'index': file.index,
+            'id': file.id,
             'priority': file.priority
         }
 
@@ -29,48 +26,61 @@ def sort_by_filename(file_list):
     #   retrieve associated keys
 
     # init objects
-    file_dict_sorted_by_name = {'file_names': {}}
+    file_names_sorted_and_prioritized_file_keys = {'file_names': {}}
     # init objects needed for priority hunting
-    key_now = key_before = key_before_before = None
+    file_03_keep = file_02_keep = file_01_delete = None
     group_of_three_found = False
-    prioritized_file_keys = None
+    prioritized_file_keys = {}
+    get_next_value = False
 
     for idx, file_dict_key_sorted in enumerate(file_dict_keys_sorted):
-        val_now = val_before = val_before_before = None
+        val_03 = val_02 = val_to_delete = None
+
+        if get_next_value:
+            file_04_select = file_dict_key_sorted
+            prioritized_file_keys['file_04_select'] = file_04_select
+            get_next_value = False
 
         # read values from the unsorted file_dict
-        entry_index = file_dict[file_dict_key_sorted]['index']
         entry_priority = file_dict[file_dict_key_sorted]['priority']
         if group_of_three_found and entry_priority == 0:
-            file_dict_sorted_by_name['prioritized_file_keys'] = prioritized_file_keys
+            file_names_sorted_and_prioritized_file_keys['prioritized_file_keys'] = \
+                prioritized_file_keys
 
         there_are_two_previous_values = idx > 1
         if there_are_two_previous_values and \
-                'prioritized_file_keys' not in file_dict_sorted_by_name:
-            key_now = file_dict_key_sorted
-            key_before = file_dict_keys_sorted[idx - 1]
-            key_before_before = file_dict_keys_sorted[idx - 2]
+                'prioritized_file_keys' not in file_names_sorted_and_prioritized_file_keys:
+            file_01_delete = file_dict_keys_sorted[idx - 2]
+            file_02_keep = file_dict_keys_sorted[idx - 1]
+            file_03_keep = file_dict_key_sorted
 
             # init shortcuts
-            file_names = file_dict_sorted_by_name['file_names']
-            entry_before = file_names[key_before]
-            entry_before_before = file_names[key_before_before]
+            file_names = file_names_sorted_and_prioritized_file_keys['file_names']
+            entry_before = file_names[file_02_keep]
+            entry_before_before = file_names[file_01_delete]
 
             # get priority values of current and two previous keys
-            val_now = entry_priority
-            val_before = entry_before['entry_priority']
-            val_before_before = entry_before_before['entry_priority']
+            val_03 = entry_priority
+            val_02 = entry_before['entry_priority']
+            val_to_delete = entry_before_before['entry_priority']
 
         group_of_three_found = False
-        three_in_a_row_match = val_now and val_now == val_before == val_before_before
+        three_in_a_row_match = val_03 and val_03 == val_02 == val_to_delete
         if three_in_a_row_match:
             group_of_three_found = True
-            prioritized_file_keys = [key_before_before, key_before, key_now]
+            prioritized_file_keys = {
+                'file_01_delete': file_01_delete,
+                'file_02_keep': file_02_keep,
+                'file_03_keep': file_03_keep
+            }
+            get_next_value = True
 
         # write values to the newly name-sorted file_dict
-        file_dict_sorted_by_name['file_names'][file_dict_key_sorted] = {
-            'entry_index': entry_index,
+        entry_id = file_dict[file_dict_key_sorted]['id']
+        fns_and_pfk = file_names_sorted_and_prioritized_file_keys
+        fns_and_pfk['file_names'][file_dict_key_sorted] = {
+            'entry_id': entry_id,
             'entry_priority': entry_priority
         }
 
-    return file_dict_sorted_by_name
+    return file_names_sorted_and_prioritized_file_keys
