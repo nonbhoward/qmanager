@@ -1,7 +1,5 @@
 def find_prioritized_file_keys(file_list):
     """
-    TODO note that itertools.groupby could have been useful here
-
     :param file_list:
     :return:
     """
@@ -26,61 +24,38 @@ def find_prioritized_file_keys(file_list):
     #   retrieve associated keys
 
     # init objects
-    file_names_sorted_and_prioritized_file_keys = {'file_names': {}}
+    fns_and_pfk = {'file_names': {}}
     # init objects needed for priority hunting
     file_03_keep = file_02_keep = file_01_delete = None
     group_of_three_found = False
     prioritized_file_keys = {}
     get_next_value = False
 
-    for idx, file_dict_key_sorted in enumerate(file_dict_keys_sorted):
-        val_03 = val_02 = val_to_delete = None
-
-        if get_next_value:
-            file_04_select = file_dict_key_sorted
-            prioritized_file_keys['file_04_select'] = file_04_select
-            get_next_value = False
-
-        # read values from the unsorted file_dict
-        entry_priority = file_dict[file_dict_key_sorted]['priority']
-        if group_of_three_found and entry_priority == 0:
-            file_names_sorted_and_prioritized_file_keys['prioritized_file_keys'] = \
-                prioritized_file_keys
-
-        there_are_two_previous_values = idx > 1
-        if there_are_two_previous_values and \
-                'prioritized_file_keys' not in file_names_sorted_and_prioritized_file_keys:
-            file_01_delete = file_dict_keys_sorted[idx - 2]
-            file_02_keep = file_dict_keys_sorted[idx - 1]
-            file_03_keep = file_dict_key_sorted
-
-            # init shortcuts
-            file_names = file_names_sorted_and_prioritized_file_keys['file_names']
-            entry_before = file_names[file_02_keep]
-            entry_before_before = file_names[file_01_delete]
-
-            # get priority values of current and two previous keys
-            val_03 = entry_priority
-            val_02 = entry_before['entry_priority']
-            val_to_delete = entry_before_before['entry_priority']
-
-        group_of_three_found = False
-        three_in_a_row_match = val_03 and val_03 == val_02 == val_to_delete
-        if three_in_a_row_match:
-            group_of_three_found = True
-            prioritized_file_keys = {
-                'file_01_delete': file_01_delete,
-                'file_02_keep': file_02_keep,
-                'file_03_keep': file_03_keep
-            }
-            get_next_value = True
-
+    priorities = []
+    for file_dict_key_sorted in file_dict_keys_sorted:
         # write values to the newly name-sorted file_dict
         entry_id = file_dict[file_dict_key_sorted]['id']
-        fns_and_pfk = file_names_sorted_and_prioritized_file_keys
+        entry_priority = file_dict[file_dict_key_sorted]['priority']
+        fns_and_pfk = fns_and_pfk
         fns_and_pfk['file_names'][file_dict_key_sorted] = {
             'entry_id': entry_id,
             'entry_priority': entry_priority
         }
+        priorities.append(entry_priority)
 
-    return file_names_sorted_and_prioritized_file_keys
+    priorities_count = len(priorities)
+    action_indices = []
+    for idx in range(priorities_count):
+        sample = [priority for priority in priorities[idx:idx+5]]
+        target = [0, 1, 1, 1, 0]
+        if target == sample:
+            action_indices = [idx + 1, idx + 2, idx + 3]
+        action_keys = []
+        for action_index in action_indices:
+            action_keys.append(file_dict_keys_sorted[action_index])
+        if action_keys:
+            prioritized_file_keys = {
+                'file_01_delete': action_keys[0]
+            }
+    fns_and_pfk['prioritized_file_keys'] = prioritized_file_keys
+    return fns_and_pfk
