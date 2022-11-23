@@ -123,8 +123,7 @@ class Qmanager:
                 e_id = details['file_names'][file_to_delete]['entry_id']
                 self.delete_file(e_hash=e_hash, e_id=e_id)
                 e_id = None
-            self.recheck_and_resume(e_hash)
-            pass
+                self.recheck_and_resume(e_hash)
 
     def delete_file(self, e_hash, e_id, timeout_sec=15):
         qbit = self.qbit_instance
@@ -192,8 +191,10 @@ class Qmanager:
 
     def recheck_and_resume(self, e_hash, timeout_sec=15):
         qbit = self.qbit_instance
+        e_name = qbit.torrents_info(torrent_hashes=e_hash).data[0].name
 
         # force recheck
+        print(f'rechecking {e_name}')
         qbit.torrents_recheck(torrent_hashes=e_hash)
 
         # wait for recheck to complete
