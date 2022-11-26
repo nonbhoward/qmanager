@@ -6,7 +6,7 @@ import json
 import os
 
 # imports, project
-from data_mgmt.data_mgmt import find_pfks
+from data_mgmt.data_mgmt import get_files_to_delete
 from qbit.q_enum import EntryState
 from qbit.q_enum import FilePriority
 from qmanager.cache import CacheController
@@ -98,23 +98,24 @@ class Qmanager:
         target = [0, 1, 1, 1, 0]
         for e_hash, details in self.cache_controller.get_entry_cache().items():
             file_list = details['files']
-            file_list_w_pfks = find_pfks(file_list, target)
-            action_cache[e_hash] = file_list_w_pfks
+            files_to_delete = {
+                'file_delete_metadata': get_files_to_delete(file_list, target)
+            }
+            action_cache[e_hash] = files_to_delete
         self.cache_controller.update_action_cache(action_cache)
 
     def execute_action_cache(self):
         action_cache = self.cache['action_cache']
         for e_hash, details in action_cache.items():
-            if 'prioritized_file_keys' not in details:
+            if not details['file_delete_metadata']['files_to_delete']:
                 continue
-            pfk = details['prioritized_file_keys']
-            ftd = 'file_01_delete'
-            file_to_delete = pfk[ftd] if ftd in pfk else None
-            if file_to_delete:
-                e_id = details['file_names'][file_to_delete]['entry_id']
+            ftm = details['file_delete_metadata']
+            for ftd_key in ftm['files_to_delete']:
+                e_id = details['file_delete_metadata']['file_names'][
+                    ftd_key]['entry_id']
                 self.delete_file(e_hash=e_hash, e_id=e_id)
                 e_id = None
-                self.recheck_and_resume(e_hash)
+            self.recheck_and_resume(e_hash)
 
     def delete_file(self, e_hash, e_id, timeout_sec=15):
         qbit = self.qbit_instance
