@@ -22,13 +22,10 @@ class Qmanager:
         self.cache_controller = None
 
     def run(self):
-        # read state cache
-        self.read_cache()
-
         # get qbit state
-        self.read_qbit_state()
+        self.build_entry_cache()
 
-        # correct any errors
+        # correct any entries in error state
         self.recheck_error_entries()
 
         # read entry cache > populate action cache
@@ -36,11 +33,6 @@ class Qmanager:
 
         # execute action cache
         self.execute_action_cache()
-
-        # write state cache
-        # FIXME bug where cache reads back as dict and breaks everything
-        exit()
-        self.write_cache()
 
     def read_cache(self):
         # init core objects
@@ -72,7 +64,7 @@ class Qmanager:
         self.cache = json_cache
         self.cache_controller = CacheController(self.cache)
 
-    def read_qbit_state(self):
+    def build_entry_cache(self):
         # init core objects
         qbit = self.qbit_instance
 
