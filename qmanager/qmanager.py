@@ -101,12 +101,11 @@ class Qmanager:
         for e_hash, details in action_cache.items():
             if not details['file_delete_metadata']['files_to_delete']:
                 continue
-            ftm = details['file_delete_metadata']
-            for ftd_key in ftm['files_to_delete']:
+            fdm = details['file_delete_metadata']
+            for ftd_key in fdm['files_to_delete']:
                 e_id = details['file_delete_metadata']['file_names'][
                     ftd_key]['entry_id']
                 self.delete_file(e_hash=e_hash, e_id=e_id)
-                e_id = None
             self.recheck_and_resume(e_hash)
 
     def delete_file(self, e_hash, e_id, timeout_sec=15):
