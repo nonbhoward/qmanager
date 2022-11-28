@@ -22,6 +22,9 @@ class Qmanager:
         self.cache_controller = None
 
     def run(self):
+        # init cache
+        self.read_cache()
+
         # get qbit state
         self.build_entry_cache()
 
