@@ -37,6 +37,9 @@ class Qmanager:
         # execute action cache
         self.execute_action_cache()
 
+        # clean up
+        self.remove_parts_files()
+
     def read_cache(self):
         # init core objects
         path_to_cache = self.path_to_cache
@@ -78,19 +81,20 @@ class Qmanager:
             self.cache_controller.set_entry_files(entry.hash, files)
 
     def recheck_error_entries(self):
+        print(f'checking for error status')
         qbit = self.qbit_instance
         all_entries = qbit.torrents.info()
         for entry in all_entries:
             if entry.state_enum.is_errored:
+                print(f'rechecking : {entry.hash}')
                 qbit.torrents_recheck(torrent_hashes=entry.hash)
 
     def parse_actions_from_entry_cache(self):
+        print(f'parsing actions')
         self.cache_controller.init_action_cache()
         action_cache = {}
         # read entry hash, looking for sequentially selected filenames
         # this target represents three prioritized files in a row
-        # TODO abstract this more clearly
-        target = [0, 1, 1, 1, 0]
         for e_hash, details in self.cache_controller.get_entry_cache().items():
             file_list = details['files']
             files_to_delete = {
@@ -100,9 +104,17 @@ class Qmanager:
         self.cache_controller.update_action_cache(action_cache)
 
     def execute_action_cache(self):
+        print(f'execute actions')
+        qbit = self.qbit_instance
         action_cache = self.cache['action_cache']
         eid = None
         for e_hash, details in action_cache.items():
+            # resume any paused
+            paused = EntryState.paused in qbit.torrents_info(
+                torrent_hashes=e_hash).data[0].state
+            if paused:
+                print(f'resume : {e_hash}')
+                qbit.torrents_resume(torrent_hashes=e_hash)
             if not details['file_delete_metadata']['file_names']:
                 continue
             fdm = details['file_delete_metadata']
@@ -212,6 +224,18 @@ class Qmanager:
 
         # resume
         qbit.torrents_resume(torrent_hashes=e_hash)
+
+    def remove_parts_files(self):
+        qbit = self.qbit_instance
+        path_to_entries = qbit.app.default_save_path
+        items = os.listdir(path_to_entries)
+        for item in items:
+            starts_with_period = item.startswith('.')
+            ends_with_parts = item.endswith('.parts')
+            if starts_with_period and ends_with_parts:
+                path_to_part_file = Path(path_to_entries, item)
+                print(f'remove parts file : {path_to_part_file}')
+                os.remove(path_to_part_file)
 
     def write_cache(self):
         # init core objects
