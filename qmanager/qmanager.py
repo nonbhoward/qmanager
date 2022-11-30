@@ -6,7 +6,7 @@ import json
 import os
 
 # imports, project
-from data_mgmt.data_mgmt import get_files_to_delete
+from data_mgmt.data_mgmt import get_deprioritized_files
 from qbit.q_enum import EntryState
 from qbit.q_enum import FilePriority
 from qmanager.cache import CacheController
@@ -94,7 +94,7 @@ class Qmanager:
         for e_hash, details in self.cache_controller.get_entry_cache().items():
             file_list = details['files']
             files_to_delete = {
-                'file_delete_metadata': get_files_to_delete(file_list, target)
+                'file_delete_metadata': get_deprioritized_files(file_list)
             }
             action_cache[e_hash] = files_to_delete
         self.cache_controller.update_action_cache(action_cache)
@@ -102,14 +102,15 @@ class Qmanager:
     def execute_action_cache(self):
         action_cache = self.cache['action_cache']
         for e_hash, details in action_cache.items():
-            if not details['file_delete_metadata']['files_to_delete']:
+            if not details['file_delete_metadata']['file_names']:
                 continue
             fdm = details['file_delete_metadata']
-            for ftd_key in fdm['files_to_delete']:
+            for ftd_key in fdm['file_names']:
                 e_id = details['file_delete_metadata']['file_names'][
                     ftd_key]['entry_id']
                 self.delete_file(e_hash=e_hash, e_id=e_id)
             self.recheck_and_resume(e_hash)
+        self.remove_empty_directories()
 
     def delete_file(self, e_hash, e_id, timeout_sec=15):
         qbit = self.qbit_instance
@@ -118,52 +119,37 @@ class Qmanager:
         content_path = e_info.data[0].content_path
 
         # pause entry
-        qbit.torrents_pause(torrent_hashes=e_hash)
+        e_state = qbit.torrents_info(torrent_hashes=e_hash).data[0].state
+        if EntryState.paused not in e_state:
+            qbit.torrents_pause(torrent_hashes=e_hash)
 
-        # wait, verify paused
-        paused, timeout, start_time = False, False, time()
-        print(f'pausing {e_hash} to deselect {f_name}')
-        while not paused and not timeout:
-            timeout = time() - start_time > timeout_sec
-            if timeout:
-                print(f'pause timed out')
-                exit()
-            e_state = qbit.torrents_info(
-                torrent_hashes=e_hash).data[0].state
-            paused = True if EntryState.paused in e_state else False
-            sleep(.25)
-        print(f'pause successful')
-
-        # unselect
-        print(f'deselecting {f_name}')
-        qbit.torrents_file_priority(torrent_hash=e_hash,
-                                    file_ids=e_id,
-                                    priority=FilePriority.not_download)
-
-        # wait, verify unselected
-        selected, timeout, start_time = True, False, time()
-        while selected and not timeout:
-            timeout = time() - start_time > timeout_sec
-            if timeout:
-                print(f'deselect timed out')
-                exit()
-            f_priority = qbit.torrents_info(
-                torrent_hashes=e_hash).data[0].files.data[e_id].priority
-            selected = f_priority == 1
-        print(f'deselect successful')
+            # wait, verify paused
+            paused, timeout, start_time = False, False, time()
+            print(f'pausing {e_hash} to deselect {f_name}')
+            while not paused and not timeout:
+                timeout = time() - start_time > timeout_sec
+                if timeout:
+                    print(f'pause timed out')
+                    exit()
+                e_state = qbit.torrents_info(
+                    torrent_hashes=e_hash).data[0].state
+                paused = True if EntryState.paused in e_state else False
+                sleep(.25)
+            print(f'pause successful')
 
         # find file on disk
         file_found = False
         path_to_file = None
         for root, _, files in os.walk(content_path):
+            if file_found:
+                break
             for file in files:
-                file_found = file in f_name
-                if file_found:
+                if file in f_name:
                     path_to_file = Path(root, file)
-                    break
+                    file_found = True
 
         if not file_found:
-            print(f'file not found : {f_name}')
+            # print(f'file not found : {f_name}')
             return
 
         # delete file from disk
@@ -174,6 +160,34 @@ class Qmanager:
                 os.remove(path_to_file)
             except Exception as exc:
                 print(f'failed to delete file : {exc}')
+
+    def remove_empty_directories(self):
+        all_entries = self.qbit_instance.torrents_info()
+        content_paths = []
+        for entry in all_entries:
+            content_paths.append(entry.content_path)
+        for content_path in content_paths:
+
+            # delete empty child directories
+            for e_root, e_dirs, _ in os.walk(content_path):
+                if not e_dirs:
+                    continue
+                for e_dir in e_dirs:
+                    e_dir_path = Path(e_root, e_dir)
+                    content = os.listdir(e_dir_path)
+                    if not content:
+                        os.rmdir(e_dir_path)
+                        print(f'removed : {e_dir_path}')
+
+            sleep(0.1)
+            # delete empty parent directories
+            if not os.path.exists(content_path):
+                continue
+            content = os.listdir(content_path)
+            if not content:
+                os.rmdir(content_path)
+                print(f'removed : {content_path}')
+                continue
 
     def recheck_and_resume(self, e_hash, timeout_sec=15):
         qbit = self.qbit_instance
