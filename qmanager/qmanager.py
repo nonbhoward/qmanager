@@ -109,12 +109,6 @@ class Qmanager:
         action_cache = self.cache['action_cache']
         eid = None
         for e_hash, details in action_cache.items():
-            # resume any paused
-            paused = EntryState.paused in qbit.torrents_info(
-                torrent_hashes=e_hash).data[0].state
-            if paused:
-                print(f'resume : {e_hash}')
-                qbit.torrents_resume(torrent_hashes=e_hash)
             if not details['file_delete_metadata']['file_names']:
                 continue
             fdm = details['file_delete_metadata']
@@ -124,6 +118,7 @@ class Qmanager:
                 self.delete_file(e_hash=e_hash, e_id=e_id)
             if eid:
                 self.recheck_and_resume(e_hash)
+            qbit.torrents_resume(torrent_hashes=e_hash)
         self.remove_empty_directories()
 
     def delete_file(self, e_hash, e_id, timeout_sec=15):
@@ -134,7 +129,7 @@ class Qmanager:
 
         # pause entry
         e_state = qbit.torrents_info(torrent_hashes=e_hash).data[0].state
-        if EntryState.paused not in e_state:
+        if EntryState.stopped not in e_state:
             qbit.torrents_pause(torrent_hashes=e_hash)
 
             # wait, verify paused

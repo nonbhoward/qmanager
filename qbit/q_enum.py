@@ -1,5 +1,7 @@
 class EntryState:
-    paused = 'paused'
+    completed = 'pausedUP'
+    paused = 'pausedDL'
+    stopped = 'paused'
 
 
 class FilePriority:
