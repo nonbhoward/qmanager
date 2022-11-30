@@ -101,6 +101,7 @@ class Qmanager:
 
     def execute_action_cache(self):
         action_cache = self.cache['action_cache']
+        eid = None
         for e_hash, details in action_cache.items():
             if not details['file_delete_metadata']['file_names']:
                 continue
@@ -109,7 +110,8 @@ class Qmanager:
                 e_id = details['file_delete_metadata']['file_names'][
                     ftd_key]['entry_id']
                 self.delete_file(e_hash=e_hash, e_id=e_id)
-            self.recheck_and_resume(e_hash)
+            if eid:
+                self.recheck_and_resume(e_hash)
         self.remove_empty_directories()
 
     def delete_file(self, e_hash, e_id, timeout_sec=15):
