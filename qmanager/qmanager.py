@@ -28,10 +28,12 @@ class Qmanager:
     def run(self):
         self.read_cached_snapshots()
         self.build_snapshot_from_client_state()
+
         self.get_files_to_delete()
         self.delete_files()
         self.remove_empty_directories()
         self.recheck_error_entries()
+
         self.write_cache()
         self.remove_parts_files()
         self.resume_paused()
@@ -59,7 +61,6 @@ class Qmanager:
         # generate a new timestamped data collection
         ts_guid = get_timestamp()
         client_data = {ts_guid: {}}
-
         # convenience
         client_data_at_ts = client_data[ts_guid]
 
@@ -67,42 +68,18 @@ class Qmanager:
         # comb the data, go ahead and comb it..
         all_entries = self.qbit.torrents.info()
         for entry in all_entries:
+            e_priorities = []
             e_hash = entry.hash
             e_data = {e_hash: {}}
-
             # convenience
             e_data_at_hash = e_data[e_hash]
 
-            # extract metadata and build e_priorities which will be used
-            #   to decide which entries to explore later, if the priorities
-            #   have not changed, maybe do nothing?
-            e_priorities = []
             for efd_file in entry.files.data:
+                # build e_priorities for delta checking
+                e_priorities.append(efd_file['priority'])
 
-                # convenience
-                efd_index = efd_file['index']
-                if 'files_to_delete' not in e_data_at_hash:
-                    # init ftd here so it's at top of debugger later..
-                    e_data_at_hash['files_to_delete'] = None
-                if 'efd_files_data' not in e_data_at_hash:
-                    e_data_at_hash['efd_files_data'] = {
-                        efd_index: {}
-                    }
-
-                # convenience
-                efd_file_priority = efd_file['priority']
-                entry_file_data = {
-                    'availability': efd_file['availability'],
-                    'id': efd_file['id'],
-                    'name': efd_file['name'],
-                    'piece_range': efd_file['piece_range'],
-                    'priority': efd_file_priority,
-                    'progress': efd_file['progress'],
-                    'size': efd_file['size'],
-                }
-
-                e_priorities.append(efd_file_priority)
-                e_data_at_hash['efd_files_data'][efd_index] = entry_file_data
+                # add efd data to entry data at this e_hash
+                add_efd_files_data_to_(e_data_at_hash, efd_file)
 
             # save priorities and..?
             e_data_at_hash['e_priorities'] = e_priorities
@@ -178,22 +155,6 @@ class Qmanager:
             for file_to_delete in files_to_delete:
                 self.delete_file(e_hash, file_to_delete)
             self.recheck_and_resume(e_hash)
-
-
-    def recheck_error_entries(self):
-        print(f'checking for error status')
-        # convenience
-        client_data_snapshots = self.cc.cache['client_data_snapshots']
-        cds = client_data_snapshots
-
-        ts_guids_sorted = sorted(cds)
-        cds_now = cds[ts_guids_sorted[-1]]
-
-        for e_hash, e_details in cds_now.items():
-            efd_state = e_details['state']
-            efd_hash = e_details['hash']
-            if EntryState.error in efd_state:
-                self.qbit.torrents_recheck(torrent_hashes=efd_hash)
 
     def delete_file(self, e_hash, file_data, timeout_sec=15):
         timeout_sec = timeout_debug if debug else timeout_sec
@@ -273,6 +234,21 @@ class Qmanager:
                 os.rmdir(content_path)
                 print(f'removed : {content_path}')
 
+    def recheck_error_entries(self):
+        print(f'checking for error status')
+        # convenience
+        client_data_snapshots = self.cc.cache['client_data_snapshots']
+        cds = client_data_snapshots
+
+        ts_guids_sorted = sorted(cds)
+        cds_now = cds[ts_guids_sorted[-1]]
+
+        for e_hash, e_details in cds_now.items():
+            efd_state = e_details['state']
+            efd_hash = e_details['hash']
+            if EntryState.error in efd_state:
+                self.qbit.torrents_recheck(torrent_hashes=efd_hash)
+
     def recheck_and_resume(self, e_hash, timeout_sec=15):
         timeout_sec = timeout_debug if debug else timeout_sec
         e_name = self.qbit.torrents_info(torrent_hashes=e_hash).data[0].name
@@ -294,6 +270,15 @@ class Qmanager:
         # resume
         self.qbit.torrents_resume(torrent_hashes=e_hash)
 
+    def write_cache(self):
+        # init core objects
+        cache = self.cc.cache
+        path_to_cache = self.path_to_cache
+
+        # write to disk
+        with open(path_to_cache, 'w') as cache_w:
+            json.dump(cache, cache_w)
+
     def remove_parts_files(self):
         path_to_parts = self.qbit.app.default_save_path
         items = os.listdir(path_to_parts)
@@ -304,15 +289,6 @@ class Qmanager:
                 path_to_part_file = Path(path_to_parts, item)
                 print(f'remove parts file : {path_to_part_file}')
                 os.remove(path_to_part_file)
-
-    def write_cache(self):
-        # init core objects
-        cache = self.cc.cache
-        path_to_cache = self.path_to_cache
-
-        # write to disk
-        with open(path_to_cache, 'w') as cache_w:
-            json.dump(cache, cache_w)
 
     def resume_paused(self):
         all_entries = self.qbit.torrents_info()
@@ -327,3 +303,31 @@ def get_timestamp():
     t_format = "%Y_%m%d_%H%M_%S"
     t_now = strftime(t_format, gmtime())
     return t_now
+
+def add_efd_files_data_to_(e_data_at_hash, efd_file):
+    """Extract k:v from efd_file and assign them to e_data_at_hash
+    :param e_data_at_hash:
+    :param efd_file:
+    :return:
+    """
+    # convenience
+    if 'files_to_delete' not in e_data_at_hash:
+        # init ftd here so it's at top of debugger later..
+        e_data_at_hash['files_to_delete'] = None
+
+    # init efd metadata container (rooted on the efd index)..
+    if 'efd_files_data' not in e_data_at_hash:
+        e_data_at_hash['efd_files_data'] = {}
+
+    # ..or update if already exists
+    e_data_at_hash['efd_files_data'].update({
+        efd_file['index']: {
+            'availability': efd_file['availability'],
+            'id': efd_file['id'],
+            'name': efd_file['name'],
+            'piece_range': efd_file['piece_range'],
+            'priority': efd_file['priority'],
+            'progress': efd_file['progress'],
+            'size': efd_file['size'],
+        }
+    })
