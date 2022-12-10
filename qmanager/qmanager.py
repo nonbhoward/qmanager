@@ -8,10 +8,13 @@ import json
 import os
 
 # imports, project
-from data_mgmt.data_mgmt import get_deprioritized_files
 from qbit.q_enum import EntryState
 from qbit.q_enum import FilePriority
 from qmanager.cache import CacheController
+
+# module globals
+debug = False
+timeout_debug = 600
 
 
 class Qmanager:
@@ -159,16 +162,23 @@ class Qmanager:
         ts_guid_after = sorted(cds.keys())[-1]
         cds_after = cds[ts_guid_after]
 
-        # loop and delete shit
+        # loop and delete
         for e_hash, e_details in cds_after.items():
             if 'files_to_delete' not in e_details:
                 continue
             files_to_delete = e_details['files_to_delete']
             if not files_to_delete:
                 continue
+            e_state = e_details['state']
+            if EntryState.error in e_state:
+                e_name = e_details['name']
+                print(f'error state at entry : {e_name}')
+                self.recheck_and_resume(e_hash)
+                continue
             for file_to_delete in files_to_delete:
                 self.delete_file(e_hash, file_to_delete)
             self.recheck_and_resume(e_hash)
+
 
     def recheck_error_entries(self):
         print(f'checking for error status')
@@ -186,6 +196,7 @@ class Qmanager:
                 self.qbit.torrents_recheck(torrent_hashes=efd_hash)
 
     def delete_file(self, e_hash, file_data, timeout_sec=15):
+        timeout_sec = timeout_debug if debug else timeout_sec
         e_info = self.qbit.torrents_info(torrent_hashes=e_hash)
         f_name = file_data['name']
         content_path = e_info.data[0].content_path
@@ -199,7 +210,7 @@ class Qmanager:
 
             # wait, verify paused
             paused, timeout, start_time = False, False, time()
-            print(f'pausing {e_hash} to deselect {f_name}')
+            print(f'pausing {e_hash} to delete {f_name}')
             while not paused and not timeout:
                 timeout = time() - start_time > timeout_sec
                 if timeout:
@@ -207,7 +218,7 @@ class Qmanager:
                     exit()
                 e_state = self.qbit.torrents_info(
                     torrent_hashes=e_hash).data[0].state
-                paused = True if EntryState.paused_dn in e_state else False
+                paused = True if EntryState.stopped in e_state else False
                 sleep(.25)
             print(f'pause successful')
 
@@ -263,6 +274,7 @@ class Qmanager:
                 print(f'removed : {content_path}')
 
     def recheck_and_resume(self, e_hash, timeout_sec=15):
+        timeout_sec = timeout_debug if debug else timeout_sec
         e_name = self.qbit.torrents_info(torrent_hashes=e_hash).data[0].name
 
         # force recheck
@@ -312,6 +324,6 @@ class Qmanager:
 
 
 def get_timestamp():
-    t_format = "%Y_%m%d_%H%M"
+    t_format = "%Y_%m%d_%H%M_%S"
     t_now = strftime(t_format, gmtime())
     return t_now
