@@ -1,9 +1,11 @@
 class EntryState:
-    completed = 'pausedUP'
     download = 'downloading'
     error = 'error'
-    paused = 'pausedDL'
+    paused_dn = 'pausedDL'
+    paused_up = 'pausedUP'
     stalled = 'stalledDL'
+    # convenience
+    stopped = 'paused'
 
 
 class FilePriority:

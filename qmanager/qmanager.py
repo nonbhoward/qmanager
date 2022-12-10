@@ -23,7 +23,6 @@ class Qmanager:
         self.cc = None
 
     def run(self):
-        self.remove_parts_files()
         self.read_cached_snapshots()
         self.build_snapshot_from_client_state()
         self.get_files_to_delete()
@@ -31,6 +30,8 @@ class Qmanager:
         self.remove_empty_directories()
         self.recheck_error_entries()
         self.write_cache()
+        self.remove_parts_files()
+        self.resume_paused()
 
     def read_cached_snapshots(self):
         # verify
@@ -108,7 +109,6 @@ class Qmanager:
             for key, val in entry.items():
                 e_data_at_hash.update({key: val})
             client_data_at_ts[e_hash] = e_data_at_hash
-        # FIXME this needs to be keyed by hash!!!
         self.cc.cache['client_data_snapshots'].update({
             ts_guid: client_data_at_ts
         })
@@ -192,8 +192,8 @@ class Qmanager:
 
         # pause entry
         e_state = self.qbit.torrents_info(torrent_hashes=e_hash).data[0].state
-        paused = EntryState.paused in e_state
-        completed = EntryState.completed in e_state
+        paused = EntryState.paused_dn in e_state
+        completed = EntryState.paused_up in e_state
         if not paused and not completed:
             self.qbit.torrents_pause(torrent_hashes=e_hash)
 
@@ -207,7 +207,7 @@ class Qmanager:
                     exit()
                 e_state = self.qbit.torrents_info(
                     torrent_hashes=e_hash).data[0].state
-                paused = True if EntryState.paused in e_state else False
+                paused = True if EntryState.paused_dn in e_state else False
                 sleep(.25)
             print(f'pause successful')
 
@@ -223,7 +223,6 @@ class Qmanager:
                     file_found = True
 
         if not file_found:
-            print(f'file not found : {f_name}')
             return
 
         # delete file from disk
@@ -240,8 +239,8 @@ class Qmanager:
         content_paths = []
         for entry in all_entries:
             content_paths.append(entry.content_path)
-        for content_path in content_paths:
 
+        for content_path in content_paths:
             # delete empty child directories
             for e_root, e_dirs, _ in os.walk(content_path):
                 if not e_dirs:
@@ -253,15 +252,15 @@ class Qmanager:
                         os.rmdir(e_dir_path)
                         print(f'removed : {e_dir_path}')
 
-            sleep(0.1)
             # delete empty parent directories
             if not os.path.exists(content_path):
+                continue
+            if not os.path.isdir(content_path):
                 continue
             content = os.listdir(content_path)
             if not content:
                 os.rmdir(content_path)
                 print(f'removed : {content_path}')
-                continue
 
     def recheck_and_resume(self, e_hash, timeout_sec=15):
         e_name = self.qbit.torrents_info(torrent_hashes=e_hash).data[0].name
@@ -278,7 +277,6 @@ class Qmanager:
             if timeout:
                 print(f'checking timed out')
                 exit()
-            # TODO not sure if this works
             checking = self.qbit.torrents_info(torrent_hashes=e_hash).data[0].state_enum.is_checking
 
         # resume
@@ -304,8 +302,16 @@ class Qmanager:
         with open(path_to_cache, 'w') as cache_w:
             json.dump(cache, cache_w)
 
+    def resume_paused(self):
+        all_entries = self.qbit.torrents_info()
+        for entry in all_entries:
+            e_state = entry.state
+            if EntryState.paused_dn in e_state:
+                print(f'resume : {entry.name}')
+                self.qbit.torrents_resume(entry.hash)
+
 
 def get_timestamp():
-    t_format = "%Y_%m%d_%H%M_%s"
+    t_format = "%Y_%m%d_%H%M"
     t_now = strftime(t_format, gmtime())
     return t_now
