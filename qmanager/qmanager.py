@@ -41,14 +41,7 @@ class Qmanager:
     def read_cached_snapshots(self):
         # verify
         if not os.path.exists(self.path_to_cache):
-            print(f'file not exist : {self.path_to_cache}')
-            try:
-                print(f'attempt create file : {self.path_to_cache}')
-                with open(self.path_to_cache, 'w') as new_cache:
-                    new_cache.write('{}')
-            except Exception as exc:
-                print(f'exception creating new cache : {exc}')
-                raise exc
+            create_new_cache(self.path_to_cache)
 
         # read cache
         with open(self.path_to_cache, 'r') as cache_r:
@@ -65,12 +58,11 @@ class Qmanager:
         client_data_at_ts = client_data[ts_guid]
 
         # extract entry information from client
-        # comb the data, go ahead and comb it..
         all_entries = self.qbit.torrents.info()
         for entry in all_entries:
-            e_priorities = []
             e_hash = entry.hash
             e_data = {e_hash: {}}
+            e_priorities = []
             # convenience
             e_data_at_hash = e_data[e_hash]
 
@@ -85,7 +77,7 @@ class Qmanager:
             e_data_at_hash['e_priorities'] = e_priorities
             e_data_at_hash['all_delete'] = not any(e_priorities)
 
-            # directly extract dict vals
+            # directly extract remaining dict key, vals
             for key, val in entry.items():
                 e_data_at_hash.update({key: val})
             client_data_at_ts[e_hash] = e_data_at_hash
@@ -95,8 +87,7 @@ class Qmanager:
 
     def get_files_to_delete(self):
         # convenience
-        client_data_snapshots = self.cc.cache['client_data_snapshots']
-        cds = client_data_snapshots
+        cds = self.cc.cache['client_data_snapshots']
 
         # abort if not two snapshots to compare
         enough_snapshots = len(cds) > 1
@@ -104,7 +95,7 @@ class Qmanager:
             return
 
         # sort snapshot keys to get two most recent
-        ts_guids_sorted = sorted(client_data_snapshots.keys())
+        ts_guids_sorted = sorted(cds.keys())
         cds_after = cds[ts_guids_sorted[-1]]
         cds_before = cds[ts_guids_sorted[-2]]
 
@@ -121,14 +112,19 @@ class Qmanager:
             if not priorities_changed:
                 continue
 
+            # gather efd indices of files to delete
             delete_indices = []
             e_files_data = cds_after[e_hash]['efd_files_data']
             for idx, prio in enumerate(priorities_after):
                 if prio == FilePriority.not_download:
                     delete_indices.append(idx)
+
+            # use efd  indices to get entire efd file record
             files_to_delete = []
             for delete_index in delete_indices:
                 files_to_delete.append(e_files_data[delete_index])
+
+            # save to client data snapshot
             cds_after[e_hash]['files_to_delete'] = files_to_delete
 
     def delete_files(self):
@@ -198,7 +194,7 @@ class Qmanager:
             return
 
         # delete file from disk
-        print(f'check if exist : {path_to_file}')
+        # print(f'check if exist : {path_to_file}')
         if os.path.exists(path_to_file):
             try:
                 print(f'delete from disk : {path_to_file}')
@@ -237,17 +233,15 @@ class Qmanager:
     def recheck_error_entries(self):
         print(f'checking for error status')
         # convenience
-        client_data_snapshots = self.cc.cache['client_data_snapshots']
-        cds = client_data_snapshots
+        cds = self.cc.cache['client_data_snapshots']
 
         ts_guids_sorted = sorted(cds)
         cds_now = cds[ts_guids_sorted[-1]]
 
         for e_hash, e_details in cds_now.items():
-            efd_state = e_details['state']
-            efd_hash = e_details['hash']
-            if EntryState.error in efd_state:
-                self.qbit.torrents_recheck(torrent_hashes=efd_hash)
+            e_state = e_details['state']
+            if EntryState.error in e_state:
+                self.qbit.torrents_recheck(torrent_hashes=e_hash)
 
     def recheck_and_resume(self, e_hash, timeout_sec=15):
         timeout_sec = timeout_debug if debug else timeout_sec
@@ -297,6 +291,17 @@ class Qmanager:
             if EntryState.paused_dn in e_state:
                 print(f'resume : {entry.name}')
                 self.qbit.torrents_resume(entry.hash)
+
+
+def create_new_cache(path_to_cache):
+    print(f'file not exist : {path_to_cache}')
+    try:
+        print(f'attempt create file : {path_to_cache}')
+        with open(path_to_cache, 'w') as new_cache:
+            new_cache.write('{}')
+    except Exception as exc:
+        print(f'exception creating new cache : {exc}')
+        raise exc
 
 
 def get_timestamp():
