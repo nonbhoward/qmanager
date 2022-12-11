@@ -10,6 +10,7 @@ import os
 # imports, project
 from qbit.q_enum import EntryState
 from qbit.q_enum import FilePriority
+from qbit.q_enum import HistoricalKeys
 from qmanager.cache import CacheController
 
 # module globals
@@ -33,6 +34,9 @@ class Qmanager:
         # task disk action
         self.manipulate_qbit_data_on_disk()
 
+        # qbit client manipulation
+        self.manipulate_qbit_metadata_via_qbit()
+
         # save/update data
         self.write_updated_snapshot_to_cache()
 
@@ -54,6 +58,13 @@ class Qmanager:
         # TODO could __dict__ make any objects better by attaching them
         #   to that object's __dict__? which objects?
 
+        # TODO partition into two functions
+        #   1. populates cache['client_data_snapshots'], done
+        self.populate_client_data_snapshot()
+        #   2. updates cache['entry_history_memory'], in-progress
+        self.update_entry_history_memory()
+
+    def populate_client_data_snapshot(self):
         # generate a new timestamped data collection
         ts_guid = get_timestamp()
         client_data = {ts_guid: {}}
@@ -89,6 +100,46 @@ class Qmanager:
         self.cc.cache['client_data_snapshots'].update({
             ts_guid: client_data_at_ts
         })
+
+    def update_entry_history_memory(self):
+        # init cache key if doesn't exist
+        if 'entry_history_memory' not in self.cc.cache:
+            self.cc.cache['entry_history_memory'] = {}
+
+        # find latest data from client data snapshots
+        cds = self.cc.cache['client_data_snapshots']
+        cds_now = cds[sorted(cds)[-1]]
+        # use it to update entry_history_memory
+        ehm = self.cc.cache['entry_history_memory']
+
+        # generate a timestamp for historical entry record data
+        timestamp = get_timestamp()
+        # extract whatever is relevant to history
+        # & define which variables should be historic
+        for e_hash, e_details in cds_now.items():
+            if e_hash not in ehm:
+                ehm[e_hash] = {}
+            for e_detail_key, e_detail_value in e_details.items():
+                if e_detail_key in HistoricalKeys.keys:
+                    # create in advance for new entries
+                    new_historical_dict = {
+                        'is_historical': True,
+                        'values': {timestamp: e_detail_value}}
+
+                    if e_detail_key not in ehm[e_hash]:
+                        ehm[e_hash][e_detail_key] = new_historical_dict
+                        continue  # new historical var list initialized
+                    if 'values' not in ehm[e_hash][e_detail_key]:
+                        # a non-historical value was made historical
+                        #   and this is the first run after that
+                        ehm[e_hash][e_detail_key] = new_historical_dict
+                        continue
+                    ehm[e_hash][e_detail_key]['values'].update({
+                        timestamp: e_detail_value
+                    })
+                    continue  # existing historical var list updated
+                if e_detail_key not in ehm[e_hash]:
+                    ehm[e_hash][e_detail_key] = e_detail_value
 
     def manipulate_qbit_data_on_disk(self):
         """A function to (ideally) locate all functions that manipulate
@@ -285,6 +336,9 @@ class Qmanager:
 
         # resume
         self.qbit.torrents_resume(torrent_hashes=e_hash)
+
+    def manipulate_qbit_metadata_via_qbit(self):
+        pass
 
     def write_updated_snapshot_to_cache(self):
         # init core objects
