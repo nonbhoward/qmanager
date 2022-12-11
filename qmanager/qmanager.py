@@ -155,7 +155,6 @@ class Qmanager:
         # resume anything that was left pausedDL and not otherwise started
         self.resume_paused()
 
-
     def get_files_to_delete(self):
         # convenience
         cds = self.cc.cache['client_data_snapshots']
