@@ -26,19 +26,19 @@ class Qmanager:
         self.cc = None
 
     def run(self):
+        # load data
         self.read_cached_snapshots()
-        self.build_snapshot_from_client_state()
+        self.read_snapshot_from_qbit()
 
-        self.get_files_to_delete()
-        self.delete_files()
-        self.remove_empty_directories()
-        self.recheck_error_entries()
+        # task disk action
+        self.manipulate_qbit_data_on_disk()
 
-        self.write_cache()
-        self.remove_parts_files()
-        self.resume_paused()
+        # save/update data
+        self.write_updated_snapshot_to_cache()
 
     def read_cached_snapshots(self):
+        # FYI only two snapshots are kept so cache doesn't grow
+
         # verify
         if not os.path.exists(self.path_to_cache):
             create_new_cache(self.path_to_cache)
@@ -50,7 +50,10 @@ class Qmanager:
         # save to class
         self.cc = CacheController(json_cache)
 
-    def build_snapshot_from_client_state(self):
+    def read_snapshot_from_qbit(self):
+        # TODO could __dict__ make any objects better by attaching them
+        #   to that object's __dict__? which objects?
+
         # generate a new timestamped data collection
         ts_guid = get_timestamp()
         client_data = {ts_guid: {}}
@@ -81,9 +84,26 @@ class Qmanager:
             for key, val in entry.items():
                 e_data_at_hash.update({key: val})
             client_data_at_ts[e_hash] = e_data_at_hash
+
+        # update the timestamp guid with the latest client data
         self.cc.cache['client_data_snapshots'].update({
             ts_guid: client_data_at_ts
         })
+
+    def manipulate_qbit_data_on_disk(self):
+        """A function to (ideally) locate all functions that manipulate
+          data also managed by the qbit client
+        """
+        self.get_files_to_delete()
+        self.delete_files()
+
+        self.remove_empty_directories()
+        self.remove_parts_files()
+        self.recheck_error_entries()
+
+        # resume anything that was left pausedDL and not otherwise started
+        self.resume_paused()
+
 
     def get_files_to_delete(self):
         # convenience
@@ -242,6 +262,8 @@ class Qmanager:
             e_state = e_details['state']
             if EntryState.error in e_state:
                 self.qbit.torrents_recheck(torrent_hashes=e_hash)
+            # TODO
+            pass
 
     def recheck_and_resume(self, e_hash, timeout_sec=15):
         timeout_sec = timeout_debug if debug else timeout_sec
@@ -264,7 +286,7 @@ class Qmanager:
         # resume
         self.qbit.torrents_resume(torrent_hashes=e_hash)
 
-    def write_cache(self):
+    def write_updated_snapshot_to_cache(self):
         # init core objects
         cache = self.cc.cache
         path_to_cache = self.path_to_cache
