@@ -1,6 +1,12 @@
-dotenv:
+dotenv_filename: .env
 hardcode:
   host: (see class Hardcode)
   port: (see class Hardcode)
 path:
   state_cache: (see class Hardcode)
+qbit:
+  enforce:
+    ratio_limit: 0.01
+    seeding_time_limit: -2
+  rename:
+    offset: 1000

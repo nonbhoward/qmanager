@@ -1,0 +1,11 @@
+description:
+developer's manual for a script only i will use
+
+objects and brief descriptions:
+  cache_controller : the class that should increasingly handle data input
+    and output to cached data
+  qmanager : the class containing the .qbit attribute granting access to the
+    qbittorrent api
+
+object interfaces:
+
