@@ -11,6 +11,11 @@ config_dn = 'config'
 config_fn = 'config'
 config_ext = '.yaml'
 
+map_dn = 'data_mgmt'
+map_fn = 'name_maps'
+map_ext = '.yaml'
+
+
 projects_dn = 'git'
 
 
@@ -32,3 +37,4 @@ class Hardcode:
     # build
     path_to_cache = Path(path_to_project, cache_dn, cache_fn + cache_ext)
     path_to_config = Path(path_to_project, config_dn, config_fn + config_ext)
+    path_to_name_maps = Path(path_to_project, map_dn, map_fn + map_ext)

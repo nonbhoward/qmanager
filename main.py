@@ -1,9 +1,7 @@
 # imports, project
-from qbit.qbit import add_qbit_instance_to_config
+from qbit.q_enum import RunFrequency
 from qmanager.qmanager import Qmanager
-from read_local.read_local import read_config
+from config.read_local import read_config
 
-config = read_config()
-config = add_qbit_instance_to_config(config)
-qmanager = Qmanager(config=config)
-qmanager.run()
+qmanager = Qmanager(config=read_config())
+qmanager.run(run_frequency=RunFrequency.per_fifth_minute)

@@ -26,22 +26,25 @@ def read_config():
         config_contents = config_r.read()
         config = yaml.safe_load(config_contents)
 
+    dotenv_filename = config['dotenv_filename']
+
     # add hardcodes to config
     config['hardcode']['host'] = Hardcode.host
     config['hardcode']['port'] = Hardcode.port
     config['path']['cache'] = Hardcode.path_to_cache
+    config['path']['name_maps'] = Hardcode.path_to_name_maps
 
     # add dotenv and return
-    config['dotenv'] = read_dotenv(config, project_name)
+    config['dotenv'] = read_dotenv(project_name, dotenv_filename)
     return config
 
 
-def read_dotenv(config, project_name):
+def read_dotenv(project_name, dotenv_filename):
     # get path
     home = os.environ.get('HOME')
     if not home:  # nt compatibility
         home = os.environ['HOMEDRIVE'] + os.environ['HOMEPATH']
-    path_to_dotenv = Path(home, '.env')
+    path_to_dotenv = Path(home, dotenv_filename)
 
     # verify path
     if not os.path.exists(path_to_dotenv):
