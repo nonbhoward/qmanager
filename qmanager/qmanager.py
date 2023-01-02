@@ -40,6 +40,9 @@ class Qmanager:
         # init attributes assigned outside init
         self.qbit = None
         self.cc = None
+        self.stats = {
+            'rename': {}
+        }
 
     # FUNCTION TIER 01, Top-level program flow
     # run(), main_loop()
@@ -408,6 +411,7 @@ class Qmanager:
 
         # read name maps from config
         name_maps = self.config['name_maps']
+        self.stats['rename']['count_of_name_maps'] = len(name_maps)
 
         # append oldest names from ehm to name_maps
         ehm_names_oldest = \
@@ -431,13 +435,47 @@ class Qmanager:
 
         # iterate over latest snapshot, renaming those with name_maps
         cds_now = self.get_latest_snapshot()
+        count_of_renames_performed = 0
+        names_skipped = []
         for e_hash, e_details in cds_now.items():
             # build the new name using the old name and name_map regex
             new_name = map_to_new_name_(e_hash=e_hash, name_maps=name_maps)
-            if not new_name:
+            name_now = self.qbit.torrents_info(torrent_hash=e_hash).data[0].name
+            if new_name:
+                self.apply_rename_to_(torrent_hash=e_hash,
+                                      new_name=new_name)
+            rename_is_successful = name_now == new_name
+            if rename_is_successful:
+                count_of_renames_performed += 1
                 continue
-            self.apply_rename_to_(torrent_hash=e_hash,
-                                  new_name=new_name)
+
+            # to get here the following conditions are met :
+            #   1. there is no new name
+            names_skipped.append(name_now)
+
+        self.stats['rename']['count_of_renames_performed'] = count_of_renames_performed
+        self.stats['rename']['names_skipped'] = names_skipped
+        self.announce_rename_statistics()
+
+    def announce_rename_statistics(self, max_names_to_print: int = 0):
+        # TODO move this function to the appropriate location or add to
+        #   function-level comment
+        # FIXME : under active development
+        """This function should output information related to the rename(s)
+          performed and/or the rename_map's usage. For example, a few lines
+          of log entry could look like :
+
+            Name resets performed : 3
+            Renames performed : 3
+            Name map contains : 8
+            Renames not performed : 5
+            Names skipped : "file name one", "another file name", "pete"..
+
+          "Names skipped" line could have a "max names printed" limit where
+            unlimited if set to 0.
+
+        """
+        pass
 
     def categorize_uncategorized(self):
         pass
@@ -534,7 +572,10 @@ class Qmanager:
         ehm = self.cc.cache['entry_history_memory']
 
         # skip over name_maps that aren't in testing
+        count_of_names_reset = 0
         for e_hash, name_map in name_maps.items():
+            if not name_map:
+                continue
             if 'testing' not in name_map:
                 continue
             if not name_map['testing']:
@@ -547,6 +588,14 @@ class Qmanager:
             self.qbit.torrents_rename(torrent_hash=e_hash,
                                       new_torrent_name=oldest_name)
             # confirm rename was performed?
+            # FIXME name_now to torrent.name
+            name_now = self.qbit.torrents_info(torrent_hashes=e_hash).data[0].name
+            # FIXME any bug potential here? does a name_before make any sense?
+            name_reset_was_performed = oldest_name == name_now
+            if name_reset_was_performed:
+                count_of_names_reset += 1
+
+        self.stats['rename']['count_of_names_reset'] = count_of_names_reset
 
     def resurrect_entry_history_memory(self, category='resurrected'):
         ehm = self.cc.cache['entry_history_memory']
@@ -798,3 +847,4 @@ def qbit_is_running():
             return True
     print(f'qbit process not running, doing nothing')
     return False
+

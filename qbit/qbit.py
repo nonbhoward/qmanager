@@ -5,10 +5,15 @@ import os
 import qbittorrentapi
 import yaml
 
+
 def add_name_maps_to_config(config: dict) -> dict:
     path_to_name_maps = config['path']['name_maps']
     if not os.path.exists(path_to_name_maps):
         print(f'path to name maps not exist : {path_to_name_maps}')
+        with open(path_to_name_maps, 'w') as nm_w:
+            nm_w.write('empty:')
+    if not os.path.exists(path_to_name_maps):
+        print(f'failed to init name maps')
         exit()
 
     with open(path_to_name_maps, 'r') as nm_r:
@@ -20,6 +25,7 @@ def add_name_maps_to_config(config: dict) -> dict:
     assert isinstance(name_maps, dict), 'name_maps should be dict'
     config['name_maps'] = name_maps
     return config
+
 
 def add_qbit_instance_to_config(config: dict) -> dict:
     qbit_instance = qbittorrentapi.Client(
