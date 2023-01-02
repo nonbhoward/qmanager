@@ -14,6 +14,6 @@ def announce_duration(timed_func):
         time_after = time()
 
         # format time and get wrapped function name
-        time_elapsed = 1000 * round(time_after - time_before, 4)
+        time_elapsed = int(1000 * (time_after - time_before))
         print(f'{timed_func.__name__} executed in {time_elapsed}ms')
     return wrapper

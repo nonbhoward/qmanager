@@ -1,0 +1,8 @@
+a_name_map:
+  category:
+  regex:
+    fidelity:
+    release:
+    season:
+    title:
+  testing: True

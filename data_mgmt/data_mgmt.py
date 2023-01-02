@@ -32,6 +32,7 @@ def map_to_new_name_(e_hash: str, name_maps: dict):
     print(f'renamed TO : {new_name} FROM : {old_name}')
     return new_name
 
+
 def get_guid_from_(old_name: str, guid_offset: int):
     # TODO delete if unused
     guid_name = ''
@@ -42,6 +43,7 @@ def get_guid_from_(old_name: str, guid_offset: int):
         guid_name += new_letter
     return guid_name
 
+
 def get_e_name_from_guid(on_guid: str, guid_offset: int):
     new_name = ''
     for letter in on_guid:
@@ -51,48 +53,55 @@ def get_e_name_from_guid(on_guid: str, guid_offset: int):
         new_name += new_letter
     return new_name
 
+
 def build_new_name_from_(name_map):
     series_name = build_series_name_(name_map)
     if not series_name:
         return
     return series_name
 
+
 def build_series_name_(name_map):
+    # FIXME bug here, isn't the oldest_name, investigate why, reverse sorting?
     old_name = name_map['oldest_name']
-    rx_output = {}
-    for rx_label, rx_filter in name_map['regex'].items():
+    regex_output = {}
+    for regex_label, regex_filter in name_map['regex'].items():
         # apply each filter and validate output
 
         # prevent type mismatch
-        rx_filter = str(rx_filter)
+        regex_filter = str(regex_filter)
 
-        rx_match = re.search(rx_filter, old_name)
-        if not rx_match:
-            rx_match = ''
+        regex_match_found = re.search(regex_filter, old_name)
+        if not regex_match_found:
+            # TODO keep as var? how is it more useful?
+            no_regex_match_found = 'no_regex_match_found'
+            regex_match_found = no_regex_match_found
         else:
-            rx_match = rx_match[0]
+            regex_match_found = regex_match_found[0]
 
         # pad single digits
-        if rx_label == 'season':
-            if len(rx_match) == 1:
-                rx_match = '0' + rx_match
+        if regex_label == 'season':
+            only_one_character = len(regex_match_found) == 1
+            if only_one_character:
+                regex_match_found = '0' + regex_match_found
 
         # save output
-        rx_output[rx_label] = rx_match
+        regex_output[regex_label] = regex_match_found
         pass
 
     # build name
-    series_name = ''
-    for label, value in rx_output.items():
-        if value:
-            if label == 'season':
-                series_name = series_name + ', Season ' + value
+    full_entry_name = ''
+    for regex_label, regex_match_found in regex_output.items():
+        if regex_match_found:
+            if regex_label == 'season':
+                full_entry_name = full_entry_name + ', Season ' + regex_match_found
                 continue
-            if series_name:
-                series_name = series_name + ', ' + value
+            if full_entry_name:
+                full_entry_name = full_entry_name + ', ' + regex_match_found
                 continue
-            series_name = series_name + value
-    return series_name
+            full_entry_name = full_entry_name + regex_match_found
+    return full_entry_name
+
 
 def get_age_of_(path_to_item):
     item_stat = os.stat(path_to_item)
