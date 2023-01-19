@@ -198,6 +198,8 @@ class Qmanager:
             cds_after[e_hash]['files_to_delete'] = files_to_delete
 
     def delete_files(self):
+        # FIXME delete_files overlooks files deselected if the entry has
+        #   status completed
         # convenience
         cds = self.cc.cache['client_data_snapshots']
 
