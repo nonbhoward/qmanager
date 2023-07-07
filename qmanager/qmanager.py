@@ -582,8 +582,12 @@ class Qmanager:
                 continue
             # perform name reset
             # get oldest name for this e_hash
-            name_history = ehm[e_hash]['name']['values']
-            oldest_name = name_history[sorted(name_history, reverse=True)[-1]]
+            if e_hash in ehm:
+                name_history = ehm[e_hash]['name']['values']
+                oldest_name = name_history[sorted(name_history, reverse=True)[-1]]
+            else:
+                continue
+
             # perform rename
             self.qbit.torrents_rename(torrent_hash=e_hash,
                                       new_torrent_name=oldest_name)
