@@ -39,6 +39,7 @@ class HistoricalKeys:
         'content_path',
         'dlspeed',
         'name',
+        'progress',
         'state',
         'trackers_count',
         'upspeed'

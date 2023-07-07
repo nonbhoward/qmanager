@@ -226,7 +226,8 @@ class Qmanager:
                     if e_detail_key not in ehm[e_hash]:
                         ehm[e_hash][e_detail_key] = new_historical_dict
                         continue  # new historical var list initialized
-                    if 'values' not in ehm[e_hash][e_detail_key]:
+                    if not isinstance(ehm[e_hash][e_detail_key], dict) or \
+                            'values' not in ehm[e_hash][e_detail_key]:
                         # a non-historical value was made historical
                         #   and this is the first run after that
                         ehm[e_hash][e_detail_key] = new_historical_dict
