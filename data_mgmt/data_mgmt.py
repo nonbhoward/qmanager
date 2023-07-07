@@ -62,6 +62,7 @@ def build_new_name_from_(name_map):
 
 
 def build_series_name_(name_map):
+    # FIXME bug here, isn't the oldest_name, investigate why, reverse sorting?
     old_name = name_map['oldest_name']
     regex_output = {}
     for regex_label, regex_filter in name_map['regex'].items():
