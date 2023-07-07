@@ -107,7 +107,7 @@ class Qmanager:
         # TODO could __dict__ make any objects better by attaching them
         #   to that object's __dict__? which objects?
         self.populate_client_data_snapshot()
-        self.update_entry_history_memory()
+        self.update_entry_history_memory()  # Prevents cache growth
 
     @announce_duration
     def manipulate_qbit_data_on_disk(self):
@@ -175,27 +175,24 @@ class Qmanager:
         # extract entry information from client
         all_entries = self.qbit.torrents.info()
         for entry in all_entries:
-            e_hash = entry.hash
-            e_data = {e_hash: {}}
+            e_data = {entry.hash: {}}
             e_priorities = []
-            # convenience
-            e_data_at_hash = e_data[e_hash]
 
             for efd_file in entry.files.data:
                 # build e_priorities for delta checking
                 e_priorities.append(efd_file['priority'])
 
                 # add efd data to entry data at this e_hash
-                add_efd_files_data_to_(e_data_at_hash, efd_file)
+                add_efd_files_data_to_(e_data[entry.hash], efd_file)
 
             # save priorities and..?
-            e_data_at_hash['e_priorities'] = e_priorities
-            e_data_at_hash['all_delete'] = not any(e_priorities)
+            e_data[entry.hash]['e_priorities'] = e_priorities
+            e_data[entry.hash]['all_delete'] = not any(e_priorities)
 
             # directly extract remaining dict key, vals
             for key, val in entry.items():
-                e_data_at_hash.update({key: val})
-            client_data_at_ts[e_hash] = e_data_at_hash
+                e_data[entry.hash].update({key: val})
+            client_data_at_ts[entry.hash] = e_data[entry.hash]
 
         # update the timestamp guid with the latest client data
         self.cc.cache['client_data_snapshots'].update({
@@ -234,6 +231,14 @@ class Qmanager:
                         #   and this is the first run after that
                         ehm[e_hash][e_detail_key] = new_historical_dict
                         continue
+                    # FIXME, this update causes historical values to balloon indefinitely,
+                    #   this creates a cache that grows with a multiplier proportional to
+                    #   hash count
+                    ehm = clean_duplicates_from_(
+                        parent_object=ehm,
+                        e_hash=e_hash,
+                        e_detail_key=e_detail_key
+                    )
                     ehm[e_hash][e_detail_key]['values'].update({
                         timestamp: e_detail_value
                     })
@@ -816,6 +821,32 @@ def get_category_from_(entry):
         return 'Uncategorized'
     return category
 
+
+def clean_duplicates_from_(parent_object, e_hash, e_detail_key):
+    ipo = immutable_parent_object = copy.deepcopy(parent_object)
+    immutable_values = ipo[e_hash][e_detail_key]['values']
+    # The goal is to compare the object to itself, removing duplicates
+    # Make a copy of the object to iterate over, editing the original
+    # Create a list that will hold timestamps associated with unique values
+    #   This list will be used to prevent deletion of these unique entries
+    # From the copy, get the oldest value, collect the associated timestamp
+    ts_kv_for_unique_vals = {}
+    for timestamp, value in immutable_values.items():
+        if value is None:
+            continue  # In case of None
+
+        # Collect unique entries, this collection is used to prevent deletion
+        if value not in list(ts_kv_for_unique_vals.values()):
+            ts_kv_for_unique_vals.update({timestamp: value})
+
+    mutable_values = parent_object[e_hash][e_detail_key]['values']
+    for timestamp, value in immutable_values.items():
+        if timestamp not in list(ts_kv_for_unique_vals.keys()):
+            del mutable_values[timestamp]
+
+    return parent_object
+
+
 def get_original_names(ehm):
     names_oldest = {}
     for e_hash, e_details in ehm.items():
@@ -824,6 +855,7 @@ def get_original_names(ehm):
         name_oldest = ns[sorted(ns)[-1]]
         names_oldest.update({e_hash: name_oldest})
     return names_oldest
+
 
 def get_timestamp():
     t_format = "%Y_%m%d_%H%M_%S"
@@ -851,4 +883,3 @@ def qbit_is_running():
             return True
     print(f'qbit process not running, doing nothing')
     return False
-
