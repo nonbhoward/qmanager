@@ -97,7 +97,7 @@ class Qmanager:
 
         # read cache
         with open(path_to_cache, 'r') as cache_r:
-            size_mb = os.stat(path_to_cache).st_size / 1000000
+            size_mb = str(os.stat(path_to_cache).st_size / 1000000)[:-4]
             print(f'cache size is {size_mb} megabytes')
             json_cache = json.loads(cache_r.read())
 
